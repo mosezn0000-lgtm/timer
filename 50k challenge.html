@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Warp Click — Futuristic Challenge</title>
+  <style>
+    :root{
+      --bg:#050510;--card:#0a0f1e;--accent:#38f8f2;--accent2:#a78bfa;--muted:#94a3b8;
+      --error:#ff3c7d;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:'Segoe UI', Inter, system-ui, Arial;
+      margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+      background:radial-gradient(circle at top,#060822,#000 85%);
+      color:#e6eef6;
+      overflow:hidden;
+    }
+    .wrap{width:960px; max-width:95%; background:rgba(255,255,255,0.02);
+      border-radius:20px; padding:32px; box-shadow:0 0 50px rgba(56,248,242,0.2);
+      backdrop-filter: blur(12px);
+    }
+    h1{margin:0 0 16px; font-size:28px; text-align:center; background:linear-gradient(90deg,var(--accent),var(--accent2));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      text-shadow:0 0 20px rgba(56,248,242,0.6);
+    }
+    .card{background:var(--card); padding:20px; border-radius:16px; margin-bottom:20px;
+      box-shadow:inset 0 0 20px rgba(56,248,242,0.08);
+    }
+    .bigTimer{font-size:96px; font-weight:800; letter-spacing:-3px; text-align:center;
+      text-shadow:0 0 20px rgba(56,248,242,0.8), 0 0 40px rgba(167,139,250,0.5);
+      transition: transform 0.2s;
+    }
+    .bigTimer.glitch{
+      animation: glitch 0.3s linear infinite;
+    }
+    @keyframes glitch {
+      0% { text-shadow:2px 2px var(--accent), -2px -2px var(--accent2); }
+      50% { text-shadow:-2px 2px var(--accent2), 2px -2px var(--accent); }
+      100% { text-shadow:2px -2px var(--accent), -2px 2px var(--accent2); }
+    }
+    .controls{display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:16px}
+    button{background:rgba(56,248,242,0.08); border:1px solid rgba(56,248,242,0.4);
+      color:var(--accent); padding:12px 18px; border-radius:12px; cursor:pointer; font-size:15px;
+      transition:all 0.25s ease; position:relative; overflow:hidden;
+    }
+    button:hover{background:rgba(56,248,242,0.2); box-shadow:0 0 15px var(--accent);}
+    button.primary{background:var(--accent); color:#021; border:none; font-weight:600;}
+    button.primary:hover{background:#0fe; color:black}
+    .muted{color:var(--muted); font-size:14px}
+    .result{margin-top:16px; padding:14px; border-radius:12px; font-weight:500; text-align:center;
+      animation: scan 1.2s ease;
+    }
+    .lose{background:linear-gradient(90deg,#2a0010,#520f22); color:#fecaca; box-shadow:0 0 20px rgba(255,60,125,0.5)}
+    #targetArea{font-size:28px; margin-bottom:10px; color:var(--accent2);
+      text-shadow:0 0 20px rgba(167,139,250,0.8)}
+    @keyframes scan {
+      from{opacity:0; transform:scale(0.8)}
+      to{opacity:1; transform:scale(1)}
+    }
+    .shake{animation: shake 0.5s;}
+    @keyframes shake {
+      0% { transform: translate(2px, 2px) rotate(0deg); }
+      25% { transform: translate(-2px, -3px) rotate(-1deg); }
+      50% { transform: translate(-4px, 2px) rotate(1deg); }
+      75% { transform: translate(4px, 3px) rotate(0deg); }
+      100% { transform: translate(2px, -2px) rotate(1deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Time Warp Click — Futuristic Challenge</h1>
+
+    <div class="card">
+      <div class="muted">Тоглоомын зорилго</div>
+      <div>Санамсаргүй зорилго оноогдоно (8–13 сек). Зорилго нь эхэнд 2 секунд hologram мэт харагдаад дараа нь алга болно. Цаг гажиж харагдах ба STOP дарахад ghost delay нэмэгдэнэ. Mode нь тоглоом дууссаны дараа илэрнэ.</div>
+    </div>
+
+    <div class="card" style="text-align:center">
+      <div id="targetArea">Зорилго: ??.?? сек</div>
+      <div class="bigTimer" id="display">0.00</div>
+      <div class="controls">
+        <button id="buyBtn">Тасалбар авах ($1)</button>
+        <button id="startBtn" class="primary" disabled>Start</button>
+        <button id="stopBtn" disabled>STOP</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <div id="resultArea"></div>
+    </div>
+  </div>
+
+  <audio id="startSound" src="start.mp3"></audio>
+  <audio id="stopSound" src="stop.mp3"></audio>
+  <audio id="failSound" src="fail.mp3"></audio>
+
+  <script>
+    const TICKET_PRICE_USD = 1.00;
+    let TARGET = 10.0;
+
+    let credits = 0;
+    let started = false;
+    let startReal = 0;
+    let warpedElapsed = 0;
+    let currentWarp = 1.0;
+    let animTimer = null;
+    let warpTimer = null;
+    let currentMode = 'Classic';
+    const modes = ['Classic','Mirror','Noise','Pressure'];
+
+    const display = document.getElementById('display');
+    const buyBtn = document.getElementById('buyBtn');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const resultArea = document.getElementById('resultArea');
+    const targetArea = document.getElementById('targetArea');
+
+    const startSound = document.getElementById('startSound');
+    const stopSound = document.getElementById('stopSound');
+    const failSound = document.getElementById('failSound');
+
+    function fmt(v){ return v.toFixed(2); }
+
+    buyBtn.addEventListener('click', ()=>{
+      if(confirm(`Тасалбар авах-д $${TICKET_PRICE_USD} төлөх үү? (Demo)`)){
+        credits++;
+        startBtn.disabled = false;
+        alert('Тасалбар авлаа!');
+      }
+    });
+
+    function randomWarp(){
+      const modes = [0.5,0.8,1.0,1.2,1.5,-0.7];
+      return modes[Math.floor(Math.random()*modes.length)];
+    }
+
+    function tick(){
+      if(!started) return;
+      warpedElapsed += 0.016 * currentWarp;
+      display.textContent = fmt(Math.max(0, warpedElapsed));
+      display.classList.add('glitch');
+      setTimeout(()=> display.classList.remove('glitch'),200);
+      animTimer = requestAnimationFrame(tick);
+    }
+
+    function startGame(){
+      if(credits<=0){ alert('Тасалбар хэрэгтэй'); return; }
+      credits--;
+      TARGET = Math.floor(8 + Math.random() * 6); // 8–13 бүхэл тоо
+      currentMode = modes[Math.floor(Math.random()*modes.length)];
+      targetArea.textContent = `Зорилго: ${TARGET} сек`;
+      setTimeout(()=>{ targetArea.textContent = 'Зорилго: ???'; },2000);
+
+      warpedElapsed=0; display.textContent='0.00'; resultArea.innerHTML='';
+      startReal = performance.now();
+      started=true;
+      startBtn.disabled=true; stopBtn.disabled=false; buyBtn.disabled=true;
+      currentWarp = randomWarp();
+      animTimer = requestAnimationFrame(tick);
+      warpTimer = setInterval(()=>{ currentWarp=randomWarp(); },500+Math.random()*1000);
+      startSound.play();
+    }
+
+    function stopGame(){
+      if(!started) return;
+      started=false;
+      cancelAnimationFrame(animTimer);
+      clearInterval(warpTimer);
+      stopBtn.disabled=true; startBtn.disabled=false; buyBtn.disabled=false;
+      stopSound.play();
+
+      const ghost=0.3+Math.random()*0.4;
+      let stoppedReal = (performance.now()-startReal)/1000.0 + ghost;
+
+      if(currentMode==='Mirror') stoppedReal = TARGET*2 - stoppedReal;
+      if(currentMode==='Noise') stoppedReal += (Math.random()-0.5)*0.3;
+      if(currentMode==='Pressure') stoppedReal += (Math.random()-0.5)*0.15;
+
+      const diff = Math.abs(stoppedReal - TARGET);
+      let forcedDiff = diff < 0.06 ? 0.06 : diff;
+
+      // Always lose
+      document.body.classList.add('shake');
+      setTimeout(()=>document.body.classList.remove('shake'),500);
+      failSound.play();
+
+      resultArea.innerHTML = `<div class='result lose'>❌ Ялагдал! Mode: ${currentMode}<br>Зорилго: ${TARGET} сек<br>Жинхэнэ: ${fmt(stoppedReal)} сек<br>Зөрүү: ${fmt(forcedDiff)} сек</div>`;
+    }
+
+    function resetGame(){
+      if(started) return;
+      warpedElapsed=0; display.textContent='0.00'; resultArea.innerHTML='';
+      targetArea.textContent='Зорилго: ??.?? сек';
+    }
+
+    startBtn.addEventListener('click', startGame);
+    stopBtn.addEventListener('click', stopGame);
+    resetBtn.addEventListener('click', resetGame);
+  </script>
+</body>
+</html>
